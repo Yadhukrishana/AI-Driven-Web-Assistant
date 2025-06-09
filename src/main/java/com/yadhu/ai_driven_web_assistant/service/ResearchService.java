@@ -1,13 +1,13 @@
 package com.yadhu.ai_driven_web_assistant.service;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.yadhu.ai_driven_web_assistant.dto.GeminiResponse;
 import com.yadhu.ai_driven_web_assistant.dto.ResearchRequest;
-import org.springframework.beans.factory.annotation.Autowired;
+import org.jetbrains.annotations.NotNull;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
-
 import java.util.Map;
-import java.util.Objects;
 
 @Service
 public class ResearchService {
@@ -18,10 +18,13 @@ public class ResearchService {
     private String getGemini_api_key;
 
     private final WebClient webClient;
+    private final ObjectMapper objectMapper;
 
-    public ResearchService(WebClient.Builder webClientBuilder)
+    public ResearchService(WebClient.@NotNull  Builder webClientBuilder , ObjectMapper objectMapper)
     {
+
         this.webClient=webClientBuilder.build();
+        this.objectMapper=objectMapper;
     }
     public String processContent(ResearchRequest request){
 
@@ -43,16 +46,27 @@ public class ResearchService {
                 .bodyToMono(String.class)
                 .block();
 
-        return extractTextfromResponse(response);
+        return extractTextFromResponse(response);
     }
 
-    private String extractTextfromResponse(String response) {
+    private String extractTextFromResponse(String response) {
         try {
-
+            GeminiResponse geminiResponse = objectMapper.readValue(response, GeminiResponse.class);
+            if(geminiResponse.getCandidate()!=null && !geminiResponse.getCandidate().isEmpty()) {
+                GeminiResponse.Candidate firstCandidate = geminiResponse.getCandidate().get(0);
+                if(firstCandidate.getContent() != null &&
+                        firstCandidate.getContent().getParts() != null &&
+                        !firstCandidate.getContent().getParts().getText().isEmpty())
+                {
+                return firstCandidate.getContent().getParts().getText();
+                }
+            }
+            return "no content found in the response";
         }catch (Exception e)
         {
             return "error parsing " + e.getMessage();
         }
+
     }
 
     private String buildPrompt(ResearchRequest request)
